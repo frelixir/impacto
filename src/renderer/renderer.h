@@ -176,8 +176,8 @@ class BaseRenderer {
   virtual void SetScissorRect(RectF const& rect) = 0;
   virtual void DisableScissor() = 0;
 
-  virtual void EnableStencilBuffer() {}
-  virtual void DisableStencilBuffer() {}
+  virtual void EnableStencilTesting() {}
+  virtual void DisableStencilTesting() {}
   virtual void EnableStencilWriting() {}
   virtual void DisableStencilWriting() {}
 

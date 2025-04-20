@@ -268,6 +268,64 @@ void Renderer::DrawRect(RectF const& dest, glm::vec4 color, float angle) {
   BaseRenderer::DrawSprite(RectSprite, dest, color, angle);
 }
 
+void Renderer::DrawConvexPolygon(std::vector<glm::vec2> vertices,
+                                 const glm::vec2 pos, const glm::vec4 color,
+                                 const glm::vec2 origin, const float angle,
+                                 const glm::vec2 scale) {
+  if (!Drawing) {
+    ImpLog(LogLevel::Error, LogChannel::Render,
+           "Renderer->DrawConvexPolygon() called before BeginFrame()\n");
+    return;
+  }
+
+  Flush();
+  EnsureTextureBound(RectSprite.Sheet.Texture);
+
+  const size_t vertexCount = vertices.size() + 1;
+  const size_t indexCount = vertices.size() + 2;
+
+  VertexBufferSprites* const vertexBuffer =
+      (VertexBufferSprites*)(VertexBuffer + VertexBufferFill);
+  VertexBufferFill += vertexCount * sizeof(VertexBufferSprites);
+
+  // Transform vertices
+  std::transform(
+      vertices.begin(), vertices.end(), vertices.begin(),
+      [pos, origin, angle, scale](const glm::vec2 vertex) {
+        return DesignToNDC(Transform(vertex, pos, origin, angle, scale));
+      });
+
+  // Find inside of shape
+  glm::vec2 center = {0.0f, 0.0f};
+  for (glm::vec2 vertex : vertices) center += vertex;
+  center /= vertices.size();
+  vertexBuffer[0] = {.Position = center, .Tint = color};
+
+  // Prepare vertices/indices
+  std::vector<uint16_t> indices = {0};
+  indices.reserve(indexCount);
+  for (size_t index = 1; index < vertexCount; index++) {
+    vertexBuffer[index] = {.Position = vertices[index - 1], .Tint = color};
+    indices.push_back(index);
+  }
+  indices.push_back(1);
+
+  // Draw polygon
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(uint16_t),
+               indices.data(), GL_STATIC_DRAW);
+
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, VertexBufferFill, VertexBuffer);
+  glDrawElements(GL_TRIANGLE_FAN, indexCount, GL_UNSIGNED_SHORT, 0);
+
+  IndexBufferFill = 0;
+  VertexBufferFill = 0;
+  CurrentTexture = 0;
+
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, IndexBufferCount * sizeof(uint16_t),
+               IndexBuffer, GL_STATIC_DRAW);
+}
+
 void Renderer::DrawSprite3DRotated(Sprite const& sprite, RectF const& dest,
                                    float depth, glm::vec2 vanishingPoint,
                                    bool stayInScreen, glm::quat rot,
